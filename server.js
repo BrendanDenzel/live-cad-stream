@@ -4,8 +4,12 @@ const { Readable } = require("stream");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Set this in Render's Environment tab (don't hardcode it if your repo is public)
-const PLAYLIST = process.env.PLAYLIST;
+// Route name -> env var holding that feed's playlist URL
+// Adds /police.m3u8 and /fire.m3u8
+const FEEDS = {
+  police: process.env.POLICE,
+  fire: process.env.FIRE,
+};
 
 const UA =
   "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 " +
@@ -80,11 +84,17 @@ async function relay(target, res) {
   }
 }
 
-app.get("/playlist.m3u8", (req, res) => {
-  if (!PLAYLIST) return res.status(500).send("PLAYLIST env var not set");
-  relay(PLAYLIST, res);
-});
+// One route per feed: /police.m3u8, /fire.m3u8
+for (const [name, url] of Object.entries(FEEDS)) {
+  app.get(`/${name}.m3u8`, (req, res) => {
+    if (!url) {
+      return res.status(500).send(`${name.toUpperCase()} env var not set`);
+    }
+    relay(url, res);
+  });
+}
 
+// Shared segment proxy for all feeds
 app.get("/seg", (req, res) => {
   let parsed;
   try {
