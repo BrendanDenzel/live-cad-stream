@@ -1,6 +1,5 @@
 const express = require("express");
 const { Readable } = require("stream");
-
 const crypto = require("crypto");
 
 // Set SECRET in Render's Environment tab (any long random string)
@@ -30,6 +29,10 @@ const FEEDS = {
   police: process.env.POLICE,
   fire: process.env.FIRE,
 };
+
+const UA =
+  "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36";
 
 // Allowed upstream domains, worked out from the feed env vars
 const ALLOWED_DOMAINS = Object.values(FEEDS)
