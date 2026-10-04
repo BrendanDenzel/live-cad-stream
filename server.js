@@ -124,7 +124,7 @@ for (const [name, url] of Object.entries(FEEDS)) {
   });
 }
 
-// Shared segment proxy for all feeds (encrypted URLs only)
+// Shared (encrypted URLs only)
 app.get("/s/:token", (req, res) => {
   let target;
   try {
