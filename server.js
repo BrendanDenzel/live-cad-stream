@@ -1,6 +1,26 @@
 const express = require("express");
 const { Readable } = require("stream");
 
+const crypto = require("crypto");
+
+// Set SECRET in Render's Environment tab (any long random string)
+const SECRET = process.env.SECRET || crypto.randomBytes(32).toString("hex");
+const KEY = crypto.createHash("sha256").update(SECRET).digest();
+
+function seal(text) {
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv("aes-256-gcm", KEY, iv);
+  const enc = Buffer.concat([c.update(text, "utf8"), c.final()]);
+  return Buffer.concat([iv, c.getAuthTag(), enc]).toString("base64url");
+}
+
+function open(token) {
+  const buf = Buffer.from(token, "base64url");
+  const d = crypto.createDecipheriv("aes-256-gcm", KEY, buf.subarray(0, 12));
+  d.setAuthTag(buf.subarray(12, 28));
+  return Buffer.concat([d.update(buf.subarray(28)), d.final()]).toString("utf8");
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -52,8 +72,11 @@ async function relay(target, res) {
 
     if (isPlaylist) {
       const text = await upstream.text();
-      const proxify = (u) =>
-        "/seg?u=" + encodeURIComponent(new URL(u, target).href);
+      const proxify = (u) => {
+        const full = new URL(u, target);
+        const ext = full.pathname.match(/\.[a-z0-9]+$/i)?.[0] || "";
+        return "/s/" + seal(full.href) + ext;
+      };
 
       const rewritten = text
         .split("\n")
@@ -94,18 +117,16 @@ for (const [name, url] of Object.entries(FEEDS)) {
   });
 }
 
-// Shared segment proxy for all feeds
-app.get("/seg", (req, res) => {
-  let parsed;
+// Shared segment proxy for all feeds (encrypted URLs only)
+app.get("/s/:token", (req, res) => {
+  let target;
   try {
-    parsed = new URL(req.query.u);
+    target = open(req.params.token.replace(/\.[a-z0-9]+$/i, ""));
+    if (!ALLOWED_HOST.test(new URL(target).hostname)) throw new Error();
   } catch {
     return res.status(400).send("Bad request");
   }
-  if (!ALLOWED_HOST.test(parsed.hostname)) {
-    return res.status(403).send("Forbidden");
-  }
-  relay(parsed.href, res);
+  relay(target, res);
 });
 
 app.listen(PORT, () => console.log(`Relay listening on ${PORT}`));
