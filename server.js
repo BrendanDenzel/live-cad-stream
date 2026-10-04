@@ -31,19 +31,23 @@ const FEEDS = {
   fire: process.env.FIRE,
 };
 
-const UA =
-  "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36";
-
-const ALLOWED_HOST = /(^|\.)broadcastify\.com$/;
+// Allowed upstream domains, worked out from the feed env vars
+const ALLOWED_DOMAINS = Object.values(FEEDS)
+  .filter(Boolean)
+  .map((u) => new URL(u).hostname.split(".").slice(-2).join("."));
+const hostAllowed = (h) =>
+  ALLOWED_DOMAINS.some((d) => h === d || h.endsWith("." + d));
 
 const UPSTREAM_HEADERS = {
   "User-Agent": UA,
-  Referer: "https://www.broadcastify.com/",
-  Origin: "https://www.broadcastify.com",
   Accept: "*/*",
   "Accept-Language": "en-US,en;q=0.9",
 };
+// Optional: only added if you set a REFERER env var
+if (process.env.REFERER) {
+  UPSTREAM_HEADERS.Referer = process.env.REFERER;
+  UPSTREAM_HEADERS.Origin = new URL(process.env.REFERER).origin;
+}
 
 app.use((req, res, next) => {
   res.set({
@@ -122,7 +126,7 @@ app.get("/s/:token", (req, res) => {
   let target;
   try {
     target = open(req.params.token.replace(/\.[a-z0-9]+$/i, ""));
-    if (!ALLOWED_HOST.test(new URL(target).hostname)) throw new Error();
+    if (!hostAllowed(new URL(target).hostname)) throw new Error();
   } catch {
     return res.status(400).send("Bad request");
   }
